@@ -15,6 +15,16 @@ struct SpawnResult {
     var note: String
 }
 
+/// Converte [String] em array de ponteiros C terminado em nil (tipos explícitos para evitar ambiguidade).
+private func makeCStrings(_ items: [String]) -> [UnsafeMutablePointer<CChar>?] {
+    var result: [UnsafeMutablePointer<CChar>?] = []
+    for item in items {
+        result.append(strdup(item))
+    }
+    result.append(nil)
+    return result
+}
+
 /// Reinicia o próprio executável com persona root e captura a saída.
 func runAsRoot(_ extraArgs: [String]) -> SpawnResult {
     guard let exe = Bundle.main.executablePath else {
@@ -40,8 +50,8 @@ func runAsRoot(_ extraArgs: [String]) -> SpawnResult {
     posix_spawn_file_actions_adddup2(&fa, fds[1], 2)
     posix_spawn_file_actions_addclose(&fa, fds[0])
 
-    let argv: [UnsafeMutablePointer<CChar>?] = ([exe] + extraArgs).map { strdup($0) } + [nil]
-    let envp: [UnsafeMutablePointer<CChar>?] = ["PATH=/usr/bin:/bin:/usr/sbin:/sbin"].map { strdup($0) } + [nil]
+    let argv = makeCStrings([exe] + extraArgs)
+    let envp = makeCStrings(["PATH=/usr/bin:/bin:/usr/sbin:/sbin"])
 
     var pid: pid_t = 0
     let rc = posix_spawn(&pid, exe, &fa, &attr, argv, envp)
